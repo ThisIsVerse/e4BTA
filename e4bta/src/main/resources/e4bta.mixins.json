@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "package": "link.e4steam.e4bta.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "injectors": { "defaultRequire": 1 },
+  "mixins": [
+    "MinecraftServerMixin"
+  ],
+  "client": [
+    "MinecraftTickMixin",
+    "ScreenConnectingMixin"
+  ]
+}

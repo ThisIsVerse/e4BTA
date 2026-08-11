@@ -1,3 +1,36 @@
+# Third-party notices
+
+## Original e4mc project
+
+This project is a separate derivative of [vgskye/e4mc-minecraft-architectury](https://github.com/vgskye/e4mc-minecraft-architectury), originally by Skye and contributors. The inherited e4mc portions remain subject to their MIT License terms, reproduced below. The e4steam project and Kamilchik's modifications are distributed under the repository-root Apache License 2.0.
+
+The original project is not responsible for this Steam transport fork. This derivative uses its own `e4steam` project, mod ID, and Java namespace.
+
+The e4steam fork is authored and maintained by Kamilchik.
+
+## steamworks4j 1.10.0
+
+Copyright (c) 2014–2025 Daniel Ludwig
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+Source: [code-disaster/steamworks4j](https://github.com/code-disaster/steamworks4j)
+
+## Kaleido Config 0.3.3+1.3.2
+
+Kaleido Config is distributed under the Apache License, Version 2.0. Because
+the dependency is shaded into the final mod JAR, the complete applicable
+license text is reproduced below.
+
+Source: [sisby-folk/kaleido-config](https://github.com/sisby-folk/kaleido-config)
+
+### Apache License, Version 2.0
+
+```text
                                  Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -186,7 +219,7 @@
       same "printed page" as the copyright notice for easier
       identification within third-party archives.
 
-   Copyright 2026 Kamilchik
+   Copyright {yyyy} {name of copyright owner}
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -199,3 +232,8 @@
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
+```
+
+## Valve Steamworks redistributables
+
+The packaged `steam_api` native libraries are Valve Steamworks redistributables supplied by the steamworks4j artifact. They are not covered by this project's Apache License 2.0. Their use and redistribution remain subject to the applicable Steamworks SDK terms and Valve agreements. App ID 480 is used only as Valve's shared development/test example and does not grant this project ownership of Spacewar or Steam infrastructure.

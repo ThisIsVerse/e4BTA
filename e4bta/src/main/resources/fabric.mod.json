@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "e4bta",
+  "version": "${version}",
+  "name": "e4BTA",
+  "description": "Steam Networking Messages tunnel for BTA multiplayer without port forwarding.",
+  "authors": ["e4steam contributors", "BTA port by Verse"],
+  "contact": {
+    "sources": "https://github.com/ThisIsVerse/e4BTA"
+  },
+  "license": "Apache-2.0",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["link.e4steam.e4bta.E4BtaServer"],
+    "client": ["link.e4steam.e4bta.E4Bta"]
+  },
+  "mixins": ["e4bta.mixins.json"],
+  "depends": {
+    "fabricloader": ">=${fabricloader}",
+    "minecraft": "8.0.1",
+    "java": ">=17"
+  }
+}

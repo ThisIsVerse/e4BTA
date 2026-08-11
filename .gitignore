@@ -1,0 +1,13 @@
+.gradle/
+**/.gradle/
+**/build/
+run/
+logs/
+*.log
+*.class
+*.jar
+!e4bta/libs/*.jar
+.idea/
+.vscode/
+*.iml
+
