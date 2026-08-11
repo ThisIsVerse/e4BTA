@@ -13,7 +13,7 @@ BTA single-player does not run an integrated server and has no modern Open to LA
 ## Install
 
 1. Install Better Than Adventure 8.0.1 with Fabric Loader `0.18.4-bta.11`.
-2. Put `e4BTA-0.2.0+bta-8.0.1.jar` in the dedicated server's `mods` folder.
+2. Put the mod jar in the dedicated server's `mods` folder.
 3. Put the same JAR in every guest client's `mods` folder.
 4. Start Steam and sign in on the server computer. The server process uses Steam's client API and therefore needs an interactive signed-in Steam session; it is not an anonymous SteamCMD server.
 5. Start the dedicated server normally. After its TCP listener binds, the log prints `Steam tunnel ready` and an `e4mc://...` share address.
