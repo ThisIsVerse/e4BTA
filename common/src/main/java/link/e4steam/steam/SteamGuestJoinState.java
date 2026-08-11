@@ -35,6 +35,9 @@ final class SteamGuestJoinState {
     }
 
     boolean beginConnect(long deadlineMillis) {
+        if (phase == Phase.CONNECTING) {
+            return true;
+        }
         if (phase != Phase.WAITING_FOR_CONFIRMATION) {
             return false;
         }

@@ -21,6 +21,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
@@ -404,6 +405,61 @@ public final class SteamRuntime {
             SteamLobbyManager current = lobbyManager;
             return current != null && current.beginGuestConnect(endpoint);
         });
+    }
+
+    public CompletableFuture<Boolean> prepareDirectConnect(String endpoint) {
+        return submitSteamTaskIfRunning(() -> {
+            SteamLobbyManager current = lobbyManager;
+            if (current == null) {
+                return CompletableFuture.completedFuture(false);
+            }
+            return current.prepareDirectConnect(endpoint);
+        }).thenCompose(result -> result);
+    }
+
+    public CompletableFuture<List<SteamFriendHost>> listFriendHosts() {
+        return submitSteamTaskIfRunning(() -> {
+            SteamLobbyManager current = lobbyManager;
+            return current == null ? List.of() : current.listFriendHosts();
+        });
+    }
+
+    public void updateHostDetails(String name, String motd, String version, int protocol, int players, int maxPlayers) {
+        submitSteamTaskIfRunning(() -> {
+            SteamLobbyManager current = lobbyManager;
+            if (current != null) {
+                current.updateHostDetails(name, motd, version, protocol, players, maxPlayers);
+            }
+            return null;
+        });
+    }
+
+    Avatar readAvatar(int handle) {
+        SteamUtils current = utils;
+        if (current == null || handle <= 0) {
+            return Avatar.EMPTY;
+        }
+        int width = current.getImageWidth(handle);
+        int height = current.getImageHeight(handle);
+        if (width <= 0 || height <= 0 || width > 256 || height > 256) {
+            return Avatar.EMPTY;
+        }
+        ByteBuffer pixels = ByteBuffer.allocateDirect(width * height * 4);
+        try {
+            if (!current.getImageRGBA(handle, pixels)) {
+                return Avatar.EMPTY;
+            }
+        } catch (Exception ignored) {
+            return Avatar.EMPTY;
+        }
+        byte[] rgba = new byte[width * height * 4];
+        pixels.position(0);
+        pixels.get(rgba);
+        return new Avatar(width, height, rgba);
+    }
+
+    record Avatar(int width, int height, byte[] rgba) {
+        private static final Avatar EMPTY = new Avatar(0, 0, new byte[0]);
     }
 
     public CompletableFuture<Boolean> claimGuestInvite(String endpoint) {

@@ -26,9 +26,13 @@ enabled=true
 accessMode=FRIENDS_ONLY
 ```
 
-The tunnel automatically uses `server-port` from `server.properties` or the server's `--port` argument. `FRIENDS_ONLY` permits the server Steam account's friends to use the copied address. `INVITE_ONLY` requires Steam lobby membership and is mainly useful when the server process has a working Steam overlay.
+The tunnel automatically uses `server-port` from `server.properties` or the server's `--port` argument. `FRIENDS_ONLY` permits the server Steam account's friends to use the copied address. When a friend connects to that address, e4BTA automatically discovers and joins the host lobby through Steam rich presence, so a Steam invite is optional. `INVITE_ONLY` still requires an invitation and lobby membership.
 
 Clients create `config/e4bta.properties`. Client-side hosting now defaults to `autoHost=false`, because the dedicated server owns the tunnel. Guests can enter the copied `e4mc://...` value as the server address; BTA's port field is ignored for Steam addresses.
+
+The multiplayer menu also includes a **Steam Friends** page. It lists Steam friends who are currently advertising an e4BTA server, and joins them using the normal BTA server controls. Copied `.steam` addresses remain available as a fallback. Steam connections show their discovery, lobby, and BTA connection progress on the connecting screen.
+
+The Steam page refreshes in the background and updates automatically while open. Entries include the host's Steam avatar and advertised server name, message, version, and player count. The page also provides **Reconnect** for the last Steam server and **Copy Diagnostics** for a sanitized connection report.
 
 ## Build
 

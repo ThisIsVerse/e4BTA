@@ -10,16 +10,41 @@ import org.slf4j.LoggerFactory;
 public final class E4steamClient {
     public static final Logger LOGGER = LoggerFactory.getLogger("e4BTA");
     public static volatile SteamSession session;
+    private static volatile SteamRuntime.Activity clientActivity;
     private E4steamClient() {}
 
     public static void init() {
         SteamRuntime.preloadCompatibilityClasses();
+        startClientRuntime();
         Config config = Config.load();
         if (config.autoHost()) {
             SteamSession created = new SteamSession(config.hostPort(), config.accessMode());
             session = created;
             created.startAsync();
         }
+    }
+
+    private static void startClientRuntime() {
+        if (Agnos.isDedicatedServer() || clientActivity != null) {
+            return;
+        }
+        SteamRuntime runtime = SteamRuntime.get();
+        SteamRuntime.Activity activity = runtime.acquireActivity();
+        clientActivity = activity;
+        Thread thread = new Thread(() -> {
+            try {
+                runtime.awaitReady();
+                LOGGER.info("Steam client integration is ready");
+            } catch (Throwable throwable) {
+                if (clientActivity == activity) {
+                    clientActivity = null;
+                }
+                activity.close();
+                LOGGER.error("Could not initialize Steam client integration", throwable);
+            }
+        }, "e4bta-client-start");
+        thread.setDaemon(true);
+        thread.start();
     }
 
     public static void acceptSteamInvite(String endpoint, String hostName) {
@@ -52,6 +77,11 @@ public final class E4steamClient {
         session = null;
         if (current != null) {
             current.stop();
+        }
+        SteamRuntime.Activity activity = clientActivity;
+        clientActivity = null;
+        if (activity != null) {
+            activity.close();
         }
         SteamRuntime.get().shutdown();
     }

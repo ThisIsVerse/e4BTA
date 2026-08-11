@@ -16,6 +16,8 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.HashSet;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -32,6 +34,13 @@ final class SteamLobbyManager implements AutoCloseable {
     private static final String KEY_ENDPOINT = "e4steam_endpoint";
     private static final String PROTOCOL_VERSION = Byte.toString(SteamProtocol.VERSION);
     private static final String LOBBY_CONNECT_PREFIX = "e4steam-lobby:";
+    private static final String RICH_ENDPOINT = "e4bta_endpoint";
+    private static final String RICH_NAME = "e4bta_name";
+    private static final String RICH_MOTD = "e4bta_motd";
+    private static final String RICH_VERSION = "e4bta_version";
+    private static final String RICH_PROTOCOL = "e4bta_protocol";
+    private static final String RICH_PLAYERS = "e4bta_players";
+    private static final String RICH_MAX_PLAYERS = "e4bta_max_players";
     private static final long GUEST_JOIN_TIMEOUT_MILLIS = 30_000;
 
     private final SteamRuntime runtime;
@@ -60,6 +69,10 @@ final class SteamLobbyManager implements AutoCloseable {
     private long requestedLobbyId;
     private long requestedFriendId;
     private long requestedJoinDeadlineMillis;
+    private String pendingDirectEndpoint;
+    private CompletableFuture<Boolean> pendingDirectResult;
+    private long pendingDirectHostId;
+    private long pendingDirectDeadlineMillis;
     private final Set<Long> canceledJoinLobbyIds = new HashSet<>();
 
     SteamLobbyManager(SteamRuntime runtime) {
@@ -91,6 +104,13 @@ final class SteamLobbyManager implements AutoCloseable {
                     requestJoin(SteamID.createFromNativeHandle(lobbyId), friend);
                 } catch (NumberFormatException ignored) {
                     E4steamClient.LOGGER.debug("Ignored an invalid Steam rich-presence join string");
+                }
+            }
+
+            @Override
+            public void onFriendRichPresenceUpdate(SteamID friend, int appId) {
+                if (SteamNativeHandle.getNativeHandle(friend) == pendingDirectHostId) {
+                    joinPendingDirectLobby(friend);
                 }
             }
         });
@@ -310,7 +330,116 @@ final class SteamLobbyManager implements AutoCloseable {
         return false;
     }
 
+    CompletableFuture<Boolean> prepareDirectConnect(String endpoint) {
+        SteamConnectionProgress.update("Finding Steam friend...");
+        CompletableFuture<Boolean> result = new CompletableFuture<>();
+        Optional<SteamAddress> parsed = SteamAddress.tryParse(endpoint);
+        if (parsed.isEmpty()) {
+            result.complete(false);
+            return result;
+        }
+
+        SteamID host = SteamID.createFromNativeHandle(parsed.get().steamId());
+        if (friends.getFriendRelationship(host) != SteamFriends.FriendRelationship.Friend) {
+            result.completeExceptionally(new IOException("The Steam host is not in your friends list"));
+            return result;
+        }
+        if (guestLobbyId != 0 && endpoint.equals(guestEndpoint)) {
+            result.complete(beginGuestConnect(endpoint));
+            return result;
+        }
+
+        if (pendingDirectResult != null) {
+            pendingDirectResult.completeExceptionally(new IOException("A different Steam connection replaced this one"));
+        }
+        pendingDirectEndpoint = endpoint;
+        pendingDirectResult = result;
+        pendingDirectHostId = parsed.get().steamId();
+        pendingDirectDeadlineMillis = System.currentTimeMillis() + GUEST_JOIN_TIMEOUT_MILLIS;
+        if (!joinPendingDirectLobby(host)) {
+            SteamConnectionProgress.update("Refreshing Steam lobby details...");
+            friends.requestFriendRichPresence(host);
+        }
+        return result;
+    }
+
+    List<SteamFriendHost> listFriendHosts() {
+        List<SteamFriendHost> hosts = new ArrayList<>();
+        int count = friends.getFriendCount(SteamFriends.FriendFlags.Immediate);
+        for (int index = 0; index < count; index++) {
+            SteamID friend = friends.getFriendByIndex(index, SteamFriends.FriendFlags.Immediate);
+            if (friend == null) {
+                continue;
+            }
+            String endpoint = friends.getFriendRichPresence(friend, RICH_ENDPOINT);
+            Optional<SteamAddress> parsed = SteamAddress.tryParse(endpoint);
+            long steamId = SteamNativeHandle.getNativeHandle(friend);
+            if (parsed.isPresent() && parsed.get().steamId() == steamId) {
+                int avatarHandle = friends.getMediumFriendAvatar(friend);
+                if (avatarHandle <= 0) {
+                    friends.requestUserInformation(friend, false);
+                }
+                SteamRuntime.Avatar avatar = runtime.readAvatar(avatarHandle);
+                hosts.add(new SteamFriendHost(
+                        steamId,
+                        friends.getFriendPersonaName(friend),
+                        endpoint,
+                        presence(friend, RICH_NAME, friends.getFriendPersonaName(friend) + "'s server"),
+                        presence(friend, RICH_MOTD, "Hosting through Steam"),
+                        presence(friend, RICH_VERSION, minecraftVersion),
+                        presenceInt(friend, RICH_PROTOCOL, 32769),
+                        presenceInt(friend, RICH_PLAYERS, 0),
+                        presenceInt(friend, RICH_MAX_PLAYERS, 0),
+                        avatar.width(), avatar.height(), avatar.rgba()
+                ));
+            } else {
+                friends.requestFriendRichPresence(friend);
+            }
+        }
+        return List.copyOf(hosts);
+    }
+
+    void updateHostDetails(String name, String motd, String version, int protocol, int players, int maxPlayers) {
+        if (hostLobbyOwner == null) {
+            return;
+        }
+        friends.setRichPresence(RICH_NAME, safePresence(name, "BTA Server"));
+        friends.setRichPresence(RICH_MOTD, safePresence(motd, "Hosting through Steam"));
+        friends.setRichPresence(RICH_VERSION, safePresence(version, minecraftVersion));
+        friends.setRichPresence(RICH_PROTOCOL, Integer.toString(protocol));
+        friends.setRichPresence(RICH_PLAYERS, Integer.toString(Math.max(0, players)));
+        friends.setRichPresence(RICH_MAX_PLAYERS, Integer.toString(Math.max(0, maxPlayers)));
+    }
+
+    private String presence(SteamID friend, String key, String fallback) {
+        String value = friends.getFriendRichPresence(friend, key);
+        return value == null || value.isBlank() ? fallback : value;
+    }
+
+    private int presenceInt(SteamID friend, String key, int fallback) {
+        try {
+            return Integer.parseInt(presence(friend, key, Integer.toString(fallback)));
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
+    }
+
+    private static String safePresence(String value, String fallback) {
+        String result = value == null || value.isBlank() ? fallback : value;
+        return result.length() <= 120 ? result : result.substring(0, 120);
+    }
+
     void cleanup(long now) {
+        if (pendingDirectResult != null
+                && requestedLobbyId == 0
+                && guestLobbyId == 0
+                && pendingDirectDeadlineMillis <= now) {
+            pendingDirectResult.completeExceptionally(new IOException(
+                    "Steam could not find your friend's e4BTA lobby"
+            ));
+            clearPendingDirect();
+            return;
+        }
         if (requestedLobbyId != 0 && requestedJoinDeadlineMillis <= now) {
             leaveGuestLobby();
             E4steamClient.showSteamJoinFailure(Mirror.translatable("text.e4steam_minecraft.joinLobbyTimeout"));
@@ -394,6 +523,7 @@ final class SteamLobbyManager implements AutoCloseable {
         hostLobbyId = lobbyId;
         friends.clearRichPresence();
         friends.setRichPresence("status", "Hosting a Minecraft LAN world");
+        friends.setRichPresence(RICH_ENDPOINT, address.inviteString());
         if (accessMode == SteamAccessMode.FRIENDS_ONLY) {
             friends.setRichPresence("connect", LOBBY_CONNECT_PREFIX + Long.toUnsignedString(lobbyId));
         }
@@ -516,6 +646,7 @@ final class SteamLobbyManager implements AutoCloseable {
     }
 
     private void requestJoin(SteamID lobby, SteamID friend) {
+        SteamConnectionProgress.update("Joining Steam lobby...");
         long lobbyId = SteamNativeHandle.getNativeHandle(lobby);
         if (lobbyId == 0 || (hostLobbyOwner != null && hostLobbyId == lobbyId)) {
             return;
@@ -617,6 +748,20 @@ final class SteamLobbyManager implements AutoCloseable {
         }
 
         guestEndpoint = endpoint;
+        SteamConnectionProgress.update("Steam lobby ready");
+        if (pendingDirectResult != null) {
+            CompletableFuture<Boolean> directResult = pendingDirectResult;
+            String directEndpoint = pendingDirectEndpoint;
+            clearPendingDirect();
+            if (!endpoint.equals(directEndpoint)) {
+                directResult.completeExceptionally(new IOException("The Steam lobby address changed; copy the new address"));
+                leaveGuestLobby();
+                return;
+            }
+            guestJoinState.waitForConfirmation();
+            directResult.complete(beginGuestConnect(endpoint));
+            return;
+        }
         // The in-world confirmation has no countdown. Keep this lobby alive
         // until the user chooses Join, then beginGuestConnect() starts the
         // bounded Minecraft connection window.
@@ -685,6 +830,10 @@ final class SteamLobbyManager implements AutoCloseable {
         requestedLobbyId = 0;
         requestedFriendId = 0;
         requestedJoinDeadlineMillis = 0;
+        if (pendingDirectResult != null) {
+            pendingDirectResult.complete(false);
+            clearPendingDirect();
+        }
         if (currentLobbyId != 0) {
             currentJoinState.cancel();
             matchmaking.leaveLobby(SteamID.createFromNativeHandle(currentLobbyId));
@@ -695,6 +844,29 @@ final class SteamLobbyManager implements AutoCloseable {
             canceledJoinLobbyIds.add(requested);
             matchmaking.leaveLobby(SteamID.createFromNativeHandle(requested));
         }
+    }
+
+    private boolean joinPendingDirectLobby(SteamID host) {
+        String connect = friends.getFriendRichPresence(host, "connect");
+        if (connect == null || !connect.startsWith(LOBBY_CONNECT_PREFIX)) {
+            return false;
+        }
+        try {
+            long lobbyId = Long.parseUnsignedLong(connect.substring(LOBBY_CONNECT_PREFIX.length()));
+            requestJoin(SteamID.createFromNativeHandle(lobbyId), host);
+            return true;
+        } catch (NumberFormatException exception) {
+            pendingDirectResult.completeExceptionally(new IOException("The host published an invalid Steam lobby", exception));
+            clearPendingDirect();
+            return true;
+        }
+    }
+
+    private void clearPendingDirect() {
+        pendingDirectResult = null;
+        pendingDirectEndpoint = null;
+        pendingDirectHostId = 0;
+        pendingDirectDeadlineMillis = 0;
     }
 
     @Override

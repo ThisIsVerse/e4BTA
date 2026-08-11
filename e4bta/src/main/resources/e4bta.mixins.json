@@ -8,6 +8,7 @@
   ],
   "client": [
     "MinecraftTickMixin",
-    "ScreenConnectingMixin"
+    "ScreenConnectingMixin",
+    "ScreenSelectServerMixin"
   ]
 }
