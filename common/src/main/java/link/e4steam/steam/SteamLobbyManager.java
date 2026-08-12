@@ -403,7 +403,7 @@ final class SteamLobbyManager implements AutoCloseable {
         if (hostLobbyOwner == null) {
             return;
         }
-        friends.setRichPresence(RICH_NAME, safePresence(name, "BTA Server"));
+        friends.setRichPresence(RICH_NAME, safePresence(friends.getPersonaName(), "BTA Server"));
         friends.setRichPresence(RICH_MOTD, safePresence(motd, "Hosting through Steam"));
         friends.setRichPresence(RICH_VERSION, safePresence(version, minecraftVersion));
         friends.setRichPresence(RICH_PROTOCOL, Integer.toString(protocol));

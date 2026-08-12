@@ -2,6 +2,7 @@ package link.e4steam.steam;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Locale;
 
 /** Restartable ownership of the process-global Steam API. */
 final class SteamLifecycle implements AutoCloseable {
@@ -28,6 +29,7 @@ final class SteamLifecycle implements AutoCloseable {
             }
             librariesLoaded = true;
         }
+        startSteamOnWindows();
         try {
             if (!api.init()) {
                 throw new IOException("SteamAPI_Init failed. Start Steam and sign in before launching Minecraft");
@@ -41,6 +43,24 @@ final class SteamLifecycle implements AutoCloseable {
         if (!api.isSteamRunning()) {
             close();
             throw new IOException("Steam is not running or the current user is not signed in");
+        }
+    }
+
+    private void startSteamOnWindows() {
+        if (!System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win")
+                || api.isSteamRunning()) {
+            return;
+        }
+        try {
+            new ProcessBuilder("rundll32", "url.dll,FileProtocolHandler", "steam://").start();
+            long deadline = System.currentTimeMillis() + 15_000;
+            while (!api.isSteamRunning() && System.currentTimeMillis() < deadline) {
+                Thread.sleep(250);
+            }
+        } catch (IOException ignored) {
+            // SteamAPI_Init below will provide the useful error if Steam still cannot start.
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
         }
     }
 

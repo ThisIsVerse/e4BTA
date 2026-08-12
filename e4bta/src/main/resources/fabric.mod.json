@@ -5,6 +5,7 @@
   "name": "e4BTA",
   "description": "Steam Networking Messages tunnel for BTA multiplayer without port forwarding.",
   "authors": ["e4steam contributors", "BTA port by Verse"],
+  "icon": "assets/e4bta/icon.png",
   "contact": {
     "sources": "https://github.com/ThisIsVerse/e4BTA"
   },

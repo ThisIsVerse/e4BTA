@@ -11,8 +11,12 @@ public final class SteamBrowserModel {
     }
 
     private static final AtomicBoolean REFRESHING = new AtomicBoolean();
+    private static final long REFRESH_INTERVAL = 10_000;
+    private static final long STARTUP_RETRY_INTERVAL = 1_000;
+    private static final long STARTUP_GRACE_PERIOD = 30_000;
     private static volatile Snapshot snapshot = new Snapshot(List.of(), true, null, 0);
     private static volatile long lastRefresh;
+    private static volatile long startupGraceDeadline;
 
     private SteamBrowserModel() {
     }
@@ -23,7 +27,11 @@ public final class SteamBrowserModel {
 
     public static void refresh(boolean force) {
         long now = System.currentTimeMillis();
-        if ((!force && now - lastRefresh < 10_000) || !REFRESHING.compareAndSet(false, true)) {
+        if (startupGraceDeadline == 0) {
+            startupGraceDeadline = now + STARTUP_GRACE_PERIOD;
+        }
+        long interval = snapshot.loading() ? STARTUP_RETRY_INTERVAL : REFRESH_INTERVAL;
+        if ((!force && now - lastRefresh < interval) || !REFRESHING.compareAndSet(false, true)) {
             return;
         }
         Snapshot before = snapshot;
@@ -36,6 +44,8 @@ public final class SteamBrowserModel {
                         .sorted((a, b) -> a.name().compareToIgnoreCase(b.name()))
                         .toList();
                 snapshot = new Snapshot(sorted, false, null, generation);
+            } else if (System.currentTimeMillis() < startupGraceDeadline) {
+                snapshot = new Snapshot(List.of(), true, null, generation);
             } else {
                 snapshot = new Snapshot(List.of(), false,
                         failure.getMessage() == null ? "Steam discovery failed" : failure.getMessage(), generation);

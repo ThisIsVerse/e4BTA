@@ -15,7 +15,10 @@ import net.minecraft.client.gui.server.ScreenSelectServer;
 import net.minecraft.client.gui.server.ServerEntry;
 import net.minecraft.client.gui.server.ServerEntryComponent;
 import net.minecraft.client.render.texture.TextureBuffered;
-import net.minecraft.core.item.Items;
+import net.minecraft.client.render.item.model.ItemModelDispatcher;
+import net.minecraft.client.render.item.model.ItemModelStandard;
+import net.minecraft.core.item.Item;
+import net.minecraft.core.util.collection.NamespaceID;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -43,8 +46,16 @@ public abstract class ScreenSelectServerMixin extends ScreenPaged {
 
     @Inject(method = "<clinit>", at = @At("TAIL"))
     private static void e4steam$registerSteamPage(CallbackInfo ci) {
+        Item steamIcon = new Item(
+                NamespaceID.getTemp("e4bta", "steam_friends_icon"),
+                "steam_friends_icon",
+                Item.highestItemId + 1
+        );
+        ItemModelDispatcher.getInstance().addDispatch(
+                new ItemModelStandard(steamIcon, "e4bta").setIcon("e4bta:item/steam_friends")
+        );
         e4steam$steamPage = ScreenSelectServer.CREATE_WORLD_PAGES.register(
-                new Page("Steam Friends", Items.TOOL_COMPASS.getDefaultStack())
+                new Page("gui.e4bta.steam_servers", steamIcon.getDefaultStack())
         );
     }
 
@@ -61,7 +72,7 @@ public abstract class ScreenSelectServerMixin extends ScreenPaged {
         e4steam$browserGeneration = snapshot.generation();
         ScreenSelectServer screen = (ScreenSelectServer) (Object) this;
         if (snapshot.hosts().isEmpty()) {
-            String message = snapshot.loading() ? "Looking for friends hosting e4BTA..."
+            String message = snapshot.loading() ? "Refreshing Steam friends..."
                     : snapshot.error() != null ? "Steam discovery failed: " + snapshot.error()
                     : "No Steam friends are currently hosting e4BTA.";
             e4steam$steamPage.withComponent(new SteamBrowserMessageComponent(message));
