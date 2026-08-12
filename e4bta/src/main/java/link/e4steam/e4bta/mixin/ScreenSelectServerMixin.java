@@ -38,6 +38,8 @@ public abstract class ScreenSelectServerMixin extends ScreenPaged {
     @Shadow public ButtonElement buttonAddServer;
     @Shadow public ButtonElement buttonEdit;
     @Shadow public ButtonElement buttonDelete;
+    @Shadow public ButtonElement buttonRefresh;
+    @Shadow public ServerEntry selectedEntry;
     @Unique private long e4steam$browserGeneration = -1;
 
     private ScreenSelectServerMixin() {
@@ -71,6 +73,8 @@ public abstract class ScreenSelectServerMixin extends ScreenPaged {
         SteamBrowserModel.Snapshot snapshot = SteamBrowserModel.snapshot();
         e4steam$browserGeneration = snapshot.generation();
         ScreenSelectServer screen = (ScreenSelectServer) (Object) this;
+        UUID selectedId = selectedEntry == null ? null : selectedEntry.uuid;
+        ServerEntry refreshedSelection = null;
         if (snapshot.hosts().isEmpty()) {
             String message = snapshot.loading() ? "Refreshing Steam friends..."
                     : snapshot.error() != null ? "Steam discovery failed: " + snapshot.error()
@@ -94,6 +98,11 @@ public abstract class ScreenSelectServerMixin extends ScreenPaged {
                 BufferedImage avatar = e4steam$avatar(host);
                 if (avatar != null) entry.icon = new TextureBuffered(avatar, false, false, false);
                 e4steam$steamPage.withComponent(new ServerEntryComponent(screen, entry));
+                if (entry.uuid.equals(selectedId)) refreshedSelection = entry;
+        }
+        if (selectedId != null) {
+            screen.setSelectedEntry(refreshedSelection);
+            screen.setupButtons();
         }
     }
 
@@ -114,6 +123,8 @@ public abstract class ScreenSelectServerMixin extends ScreenPaged {
     @Inject(method = "tick", at = @At("TAIL"))
     private void e4steam$refreshAutomatically(CallbackInfo ci) {
         if (selectedPage != e4steam$steamPage) return;
+        buttonDelete.visible = false;
+        buttonDelete.enabled = false;
         SteamBrowserModel.refresh(false);
         if (e4steam$browserGeneration != SteamBrowserModel.snapshot().generation()) e4steam$populateSteamPage();
     }
@@ -135,7 +146,13 @@ public abstract class ScreenSelectServerMixin extends ScreenPaged {
     @Inject(method = "buttonClicked", at = @At("HEAD"), cancellable = true)
     private void e4steam$steamButtons(ButtonElement button, CallbackInfo ci) {
         if (selectedPage != e4steam$steamPage) return;
-        if (button == buttonAddServer && SteamDiagnostics.endpoint() != null) {
+        if (button == buttonRefresh) {
+            SteamBrowserModel.refresh(true);
+            e4steam$populateSteamPage();
+            ci.cancel();
+        } else if (button == buttonDelete) {
+            ci.cancel();
+        } else if (button == buttonAddServer && SteamDiagnostics.endpoint() != null) {
             Minecraft minecraft = Minecraft.getMinecraft();
             minecraft.displayScreen(new ScreenConnecting(minecraft, SteamDiagnostics.endpoint(), 25565));
             ci.cancel();
