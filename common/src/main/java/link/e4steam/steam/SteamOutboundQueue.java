@@ -14,6 +14,7 @@ final class SteamOutboundQueue<B> {
         OPEN_ACK,
         DATA,
         DATAGRAM,
+        ADDON,
         FIN,
         RESET
     }
@@ -50,8 +51,12 @@ final class SteamOutboundQueue<B> {
         return offer(new Packet<>(remoteSteamId, connectionId, payload, Kind.DATAGRAM, bridge));
     }
 
+    boolean offerAddon(long remoteSteamId, int connectionId, byte[] payload, B bridge) {
+        return offer(new Packet<>(remoteSteamId, connectionId, payload, Kind.ADDON, bridge));
+    }
+
     boolean offerControl(long remoteSteamId, int connectionId, byte[] payload, Kind kind, B bridge) {
-        if (kind == Kind.DATA || kind == Kind.DATAGRAM) {
+        if (kind == Kind.DATA || kind == Kind.DATAGRAM || kind == Kind.ADDON) {
             throw new IllegalArgumentException("Control queue cannot accept " + kind);
         }
         return offer(new Packet<>(remoteSteamId, connectionId, payload, kind, bridge));
@@ -111,7 +116,7 @@ final class SteamOutboundQueue<B> {
     private Semaphore categorySlots(Packet<B> packet) {
         return switch (packet.kind()) {
             case DATA -> dataSlots;
-            case DATAGRAM -> datagramSlots;
+            case DATAGRAM, ADDON -> datagramSlots;
             case OPEN, OPEN_ACK -> openSlots;
             case RESET -> packet.bridge() == null ? standaloneResetSlots : null;
             case FIN -> null;

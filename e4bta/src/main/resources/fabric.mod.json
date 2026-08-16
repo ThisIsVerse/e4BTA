@@ -20,6 +20,7 @@
   "depends": {
     "fabricloader": ">=${fabricloader}",
     "minecraft": "8.0.1",
-    "java": ">=17"
+    "java": ">=17",
+    "halplibe": ">=${halplibe}"
   }
 }

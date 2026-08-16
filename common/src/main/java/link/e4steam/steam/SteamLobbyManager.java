@@ -285,6 +285,25 @@ final class SteamLobbyManager implements AutoCloseable {
         }
     }
 
+    long guestHostSteamId() {
+        return guestLobbyId == 0 ? 0 : guestHostSteamId;
+    }
+
+    void forEachHostGuest(LongConsumer consumer) {
+        if (hostLobbyOwner == null || hostLobbyId == 0) return;
+        SteamID lobbyId = SteamID.createFromNativeHandle(hostLobbyId);
+        int memberCount = matchmaking.getNumLobbyMembers(lobbyId);
+        for (int index = 0; index < memberCount; index++) {
+            SteamID member = matchmaking.getLobbyMemberByIndex(lobbyId, index);
+            if (member == null) continue;
+            long remoteSteamId = SteamNativeHandle.getNativeHandle(member);
+            if (remoteSteamId != 0 && remoteSteamId != runtime.steamIdValue()
+                    && friends.getFriendRelationship(member) == SteamFriends.FriendRelationship.Friend) {
+                consumer.accept(remoteSteamId);
+            }
+        }
+    }
+
     boolean keepsRuntimeAlive() {
         return (pendingHostOwner != null && !pendingHostCanceled)
                 || queuedHostOwner != null

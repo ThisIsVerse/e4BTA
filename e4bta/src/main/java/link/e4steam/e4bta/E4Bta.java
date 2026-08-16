@@ -13,6 +13,7 @@ public final class E4Bta implements ClientModInitializer {
     public void onInitializeClient() {
         registerTextures();
         E4steamClient.init();
+        E4BtaGameOptions.initialize();
         E4steamClient.LOGGER.info("e4BTA initialized");
     }
 

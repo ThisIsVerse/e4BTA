@@ -88,6 +88,8 @@ public final class SteamRuntime {
     // Forge 1.17/1.18.
     private final ConcurrentHashMap<Long, long[]> idleSessionDeadlines = new ConcurrentHashMap<>();
     private final ConcurrentLinkedQueue<SteamTask<?>> steamTasks = new ConcurrentLinkedQueue<>();
+    private final ConcurrentHashMap<String, SteamAddonChannel> addonChannels = new ConcurrentHashMap<>();
+    private final SteamVoiceApi voiceApi = new SteamVoiceApi(this);
 
     // A reliable packet rejected by Steam with temporary backpressure stays
     // ahead of the regular queue. Re-enqueuing it at the tail would reorder
@@ -121,6 +123,10 @@ public final class SteamRuntime {
 
     public static SteamRuntime get() {
         return INSTANCE;
+    }
+
+    public void setAutoStartSteam(boolean enabled) {
+        steamLifecycle.setAutoStartSteam(enabled);
     }
 
     /**
@@ -237,6 +243,35 @@ public final class SteamRuntime {
 
     long steamIdValue() {
         return localSteamId;
+    }
+
+    public long localSteamId() { return localSteamId; }
+
+    public boolean isHosting() { return hostRegistration != null && status == Status.RUNNING; }
+
+    public SteamVoiceApi voice() { return voiceApi; }
+
+    public SteamAddonChannel addonChannel(String name) {
+        return addonChannels.computeIfAbsent(name, key -> new SteamAddonChannel(this, key));
+    }
+
+    void removeAddonChannel(String name, SteamAddonChannel channel) {
+        addonChannels.remove(name, channel);
+    }
+
+    void logAddonFailure(String channel, Throwable throwable) {
+        E4steamClient.LOGGER.warn("Steam addon channel {} listener failed", channel, throwable);
+    }
+
+    @FunctionalInterface
+    interface SteamUserTask<T> { T run(SteamUser user) throws Exception; }
+
+    <T> CompletableFuture<T> runOnSteamThread(SteamUserTask<T> action) {
+        return submitSteamTaskIfRunning(() -> {
+            SteamUser current = user;
+            if (current == null) throw new IOException("Steam voice is unavailable");
+            return action.run(current);
+        });
     }
 
     /**
@@ -550,6 +585,55 @@ public final class SteamRuntime {
             return;
         }
         outbound.offerDatagram(owner.remoteSteamId(), owner.connectionId(), packet, owner);
+    }
+
+    boolean sendAddonToHost(byte[] payload) {
+        for (SteamConnectionBridge bridge : bridgeRegistry.snapshot()) {
+            if (!bridge.isHostSide() && !bridge.isClosed()) return enqueueAddon(bridge, payload);
+        }
+        SteamLobbyManager social = lobbyManager;
+        long hostSteamId = social == null ? 0 : social.guestHostSteamId();
+        return hostSteamId != 0 && enqueueStandaloneAddon(hostSteamId, payload);
+    }
+
+    int sendAddonToGuests(byte[] payload, long excludedSteamId) {
+        java.util.HashSet<Long> attempted = new java.util.HashSet<>();
+        int sent = 0;
+        for (SteamConnectionBridge bridge : bridgeRegistry.snapshot()) {
+            if (bridge.isHostSide() && !bridge.isClosed() && bridge.remoteSteamId() != excludedSteamId
+                    && attempted.add(bridge.remoteSteamId()) && enqueueAddon(bridge, payload)) {
+                sent++;
+            }
+        }
+        if (sent == 0) {
+            SteamLobbyManager social = lobbyManager;
+            if (social != null) {
+                int[] fallbackSent = {0};
+                social.forEachHostGuest(remoteSteamId -> {
+                    if (remoteSteamId != excludedSteamId && enqueueStandaloneAddon(remoteSteamId, payload)) {
+                        fallbackSent[0]++;
+                    }
+                });
+                sent = fallbackSent[0];
+            }
+        }
+        return sent;
+    }
+
+    private boolean enqueueAddon(SteamConnectionBridge bridge, byte[] payload) {
+        if (status != Status.RUNNING || isWorkerStopping() || bridge.isClosed()) return false;
+        return outbound.offerAddon(bridge.remoteSteamId(), bridge.connectionId(),
+                SteamProtocol.encodeAddon(bridge.connectionId(), payload), bridge);
+    }
+
+    private boolean enqueueStandaloneAddon(long remoteSteamId, byte[] payload) {
+        if (status != Status.RUNNING || isWorkerStopping() || !isKnownAddonPeer(remoteSteamId)) return false;
+        return outbound.offerAddon(remoteSteamId, 0, SteamProtocol.encodeAddon(0, payload), null);
+    }
+
+    private boolean isKnownAddonPeer(long remoteSteamId) {
+        SteamLobbyManager social = lobbyManager;
+        return remoteSteamId != 0 && social != null && social.mayAcceptPeer(remoteSteamId);
     }
 
     private void startClientUdpBridge(SteamConnectionBridge owner, VoiceChatUdpEndpoint endpoint) {
@@ -1196,7 +1280,7 @@ public final class SteamRuntime {
             int result = current.sendResult(
                     packet.remoteSteamId(),
                     buffer,
-                    packet.kind() == SteamOutboundQueue.Kind.DATAGRAM,
+                    packet.kind() == SteamOutboundQueue.Kind.DATAGRAM || packet.kind() == SteamOutboundQueue.Kind.ADDON,
                     CHANNEL
             );
             boolean accepted = result == 1;
@@ -1306,7 +1390,9 @@ public final class SteamRuntime {
         SteamConnectionBridge packetBridge = packet.bridge();
         if (packetBridge == null) {
             // A standalone RESET rejects an OPEN that never created a bridge.
-            return packet.kind() == SteamOutboundQueue.Kind.RESET && currentBridge == null;
+            return (packet.kind() == SteamOutboundQueue.Kind.RESET && currentBridge == null)
+                    || (packet.kind() == SteamOutboundQueue.Kind.ADDON
+                    && packet.connectionId() == 0 && isKnownAddonPeer(packet.remoteSteamId()));
         }
         if (currentBridge != packetBridge) {
             return false;
@@ -1376,6 +1462,15 @@ public final class SteamRuntime {
                 SteamUdpBridge bridge = bridgeRegistry.getUdp(key);
                 if (bridge != null) {
                     bridge.acceptSteamDatagram(frame.payload());
+                }
+            }
+            case SteamProtocol.ADDON -> {
+                if (hasBridgeForRemote(remoteSteamId) || isKnownAddonPeer(remoteSteamId)) {
+                    SteamAddonChannel.Decoded decoded = SteamAddonChannel.decode(frame.payload());
+                    if (decoded != null) {
+                        SteamAddonChannel channel = addonChannels.get(decoded.channel());
+                        if (channel != null) channel.dispatch(remoteSteamId, decoded.payload());
+                    }
                 }
             }
             default -> {

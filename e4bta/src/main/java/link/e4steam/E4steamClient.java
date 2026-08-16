@@ -11,17 +11,29 @@ public final class E4steamClient {
     public static final Logger LOGGER = LoggerFactory.getLogger("e4BTA");
     public static volatile SteamSession session;
     private static volatile SteamRuntime.Activity clientActivity;
+    private static volatile Config config;
     private E4steamClient() {}
 
     public static void init() {
         SteamRuntime.preloadCompatibilityClasses();
+        config = Config.load();
+        SteamRuntime.get().setAutoStartSteam(config.autoStartSteam());
         startClientRuntime();
-        Config config = Config.load();
         if (config.autoHost()) {
             SteamSession created = new SteamSession(config.hostPort(), config.accessMode());
             session = created;
             created.startAsync();
         }
+    }
+
+    public static Config config() {
+        return config;
+    }
+
+    public static void updateConfig(Config updated) {
+        config = updated;
+        updated.save();
+        SteamRuntime.get().setAutoStartSteam(updated.autoStartSteam());
     }
 
     private static void startClientRuntime() {

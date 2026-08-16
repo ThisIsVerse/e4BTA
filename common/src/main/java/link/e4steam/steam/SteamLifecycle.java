@@ -10,6 +10,7 @@ final class SteamLifecycle implements AutoCloseable {
     private SteamNativeLibraryLoader nativeLoader;
     private boolean librariesLoaded;
     private boolean initialized;
+    private volatile boolean autoStartSteam = true;
 
     SteamLifecycle(SteamApi api) {
         this.api = api;
@@ -29,7 +30,9 @@ final class SteamLifecycle implements AutoCloseable {
             }
             librariesLoaded = true;
         }
-        startSteamOnWindows();
+        if (autoStartSteam) {
+            startSteamOnWindows();
+        }
         try {
             if (!api.init()) {
                 throw new IOException("SteamAPI_Init failed. Start Steam and sign in before launching Minecraft");
@@ -44,6 +47,10 @@ final class SteamLifecycle implements AutoCloseable {
             close();
             throw new IOException("Steam is not running or the current user is not signed in");
         }
+    }
+
+    void setAutoStartSteam(boolean enabled) {
+        autoStartSteam = enabled;
     }
 
     private void startSteamOnWindows() {

@@ -1,6 +1,7 @@
 package link.e4steam.e4bta.mixin;
 
 import link.e4steam.E4steamClient;
+import link.e4steam.e4bta.E4BtaGameOptions;
 import net.minecraft.client.Minecraft;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -11,6 +12,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class MinecraftTickMixin {
     @Inject(method = "runTick", at = @At("HEAD"))
     private void e4steam$runClientTasks(CallbackInfo ci) {
+        E4BtaGameOptions.registerPage();
         E4steamClient.tickClientTasks();
     }
 

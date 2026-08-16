@@ -11,6 +11,7 @@ final class SteamProtocol {
     static final byte RESET = 4;
     static final byte DATAGRAM = 5;
     static final byte OPEN_ACK = 6;
+    static final byte ADDON = 7;
     static final int OPEN_ACK_PAYLOAD_SIZE = Byte.BYTES + Short.BYTES;
 
     static final int DATA_CHUNK_SIZE = 32 * 1024;
@@ -66,6 +67,15 @@ final class SteamProtocol {
         return buffer.array();
     }
 
+    static byte[] encodeAddon(int connectionId, byte[] payload) {
+        if (payload.length == 0 || payload.length > MAX_DATAGRAM_SIZE) {
+            throw new IllegalArgumentException("Invalid addon payload length: " + payload.length);
+        }
+        ByteBuffer buffer = header(ADDON, connectionId, payload.length);
+        buffer.put(payload);
+        return buffer.array();
+    }
+
     static Frame decode(ByteBuffer source) {
         if (source.remaining() < HEADER_SIZE) {
             return null;
@@ -79,7 +89,7 @@ final class SteamProtocol {
         int connectionId = source.getInt();
         int payloadLength = source.remaining();
 
-        if (connectionId == 0) {
+        if (connectionId == 0 && type != ADDON) {
             return null;
         }
         if (type == OPEN && payloadLength != SteamAddress.TOKEN_LENGTH) {
@@ -94,10 +104,14 @@ final class SteamProtocol {
         if (type == DATAGRAM && (payloadLength == 0 || payloadLength > MAX_DATAGRAM_SIZE)) {
             return null;
         }
+        if (type == ADDON && (payloadLength == 0 || payloadLength > MAX_DATAGRAM_SIZE)) {
+            return null;
+        }
         if ((type == FIN || type == RESET) && payloadLength != 0) {
             return null;
         }
-        if (type != OPEN && type != OPEN_ACK && type != DATA && type != FIN && type != RESET && type != DATAGRAM) {
+        if (type != OPEN && type != OPEN_ACK && type != DATA && type != FIN && type != RESET
+                && type != DATAGRAM && type != ADDON) {
             return null;
         }
 

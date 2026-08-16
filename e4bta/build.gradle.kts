@@ -35,6 +35,8 @@ repositories {
 dependencies {
     minecraft("::${providers.gradleProperty("bta_version").get()}")
     implementation(files("libs/fabric-loader-${providers.gradleProperty("fabric_loader_version").get()}.jar"))
+    compileOnly("turniplabs:halplibe:${providers.gradleProperty("halplibe_version").get()}+8.0")
+    localRuntime("turniplabs:halplibe:${providers.gradleProperty("halplibe_version").get()}+8.0")
 
     implementation("com.code-disaster.steamworks4j:steamworks4j:1.10.0") { isTransitive = false }
     include("com.code-disaster.steamworks4j:steamworks4j:1.10.0") { isTransitive = false }
@@ -81,10 +83,12 @@ tasks.named<JavaCompile>("compileJava") {
 tasks.processResources {
     inputs.property("version", project.version)
     inputs.property("fabricloader", providers.gradleProperty("fabric_loader_version").get())
+    inputs.property("halplibe", providers.gradleProperty("halplibe_version").get())
     filesMatching("fabric.mod.json") {
         expand(
             "version" to project.version,
-            "fabricloader" to providers.gradleProperty("fabric_loader_version").get()
+            "fabricloader" to providers.gradleProperty("fabric_loader_version").get(),
+            "halplibe" to providers.gradleProperty("halplibe_version").get()
         )
     }
     from("../LICENSE") {

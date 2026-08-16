@@ -1,1 +1,9 @@
 gui.e4bta.steam_servers=Steam Friends
+gui.options.page.e4bta.title=e4BTA
+gui.options.page.e4bta.category.settings=Steam Networking
+options.e4bta.autoHost=Host Automatically
+options.e4bta.hostPort=Default Host Port
+options.e4bta.accessMode=Default Access
+options.e4bta.accessMode.friends_only=Friends Only
+options.e4bta.accessMode.invite_only=Invite Only
+options.e4bta.autoStartSteam=Start Steam When Needed

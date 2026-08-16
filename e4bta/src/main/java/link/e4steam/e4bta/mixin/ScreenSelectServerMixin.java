@@ -6,6 +6,7 @@ import link.e4steam.steam.SteamRuntime;
 import link.e4steam.e4bta.SteamBrowserModel;
 import link.e4steam.e4bta.SteamBrowserMessageComponent;
 import link.e4steam.e4bta.SteamDiagnostics;
+import link.e4steam.e4bta.E4BtaIcons;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.ScreenConnecting;
 import net.minecraft.client.gui.ButtonElement;
@@ -15,10 +16,6 @@ import net.minecraft.client.gui.server.ScreenSelectServer;
 import net.minecraft.client.gui.server.ServerEntry;
 import net.minecraft.client.gui.server.ServerEntryComponent;
 import net.minecraft.client.render.texture.TextureBuffered;
-import net.minecraft.client.render.item.model.ItemModelDispatcher;
-import net.minecraft.client.render.item.model.ItemModelStandard;
-import net.minecraft.core.item.Item;
-import net.minecraft.core.util.collection.NamespaceID;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -48,16 +45,8 @@ public abstract class ScreenSelectServerMixin extends ScreenPaged {
 
     @Inject(method = "<clinit>", at = @At("TAIL"))
     private static void e4steam$registerSteamPage(CallbackInfo ci) {
-        Item steamIcon = new Item(
-                NamespaceID.getTemp("e4bta", "steam_friends_icon"),
-                "steam_friends_icon",
-                Item.highestItemId + 1
-        );
-        ItemModelDispatcher.getInstance().addDispatch(
-                new ItemModelStandard(steamIcon, "e4bta").setIcon("e4bta:item/steam_friends")
-        );
         e4steam$steamPage = ScreenSelectServer.CREATE_WORLD_PAGES.register(
-                new Page("gui.e4bta.steam_servers", steamIcon.getDefaultStack())
+                new Page("gui.e4bta.steam_servers", E4BtaIcons.steamFriends().getDefaultStack())
         );
     }
 

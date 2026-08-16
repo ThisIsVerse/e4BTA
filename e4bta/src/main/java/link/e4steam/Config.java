@@ -12,10 +12,21 @@ import java.util.Locale;
 import java.util.Properties;
 
 /** Human-editable BTA configuration. */
-public record Config(boolean autoHost, int hostPort, SteamAccessMode accessMode) {
-    public static Config load() {
-        Path path = Minecraft.getMinecraft().getMinecraftDir().toPath()
+public record Config(boolean autoHost, int hostPort, SteamAccessMode accessMode, boolean autoStartSteam) {
+    public Config {
+        if (hostPort < 1 || hostPort > 65535) hostPort = 25565;
+        if (accessMode == null || accessMode == SteamAccessMode.LOCAL_ONLY) {
+            accessMode = SteamAccessMode.FRIENDS_ONLY;
+        }
+    }
+
+    private static Path path() {
+        return Minecraft.getMinecraft().getMinecraftDir().toPath()
                 .resolve("config").resolve("e4bta.properties");
+    }
+
+    public static Config load() {
+        Path path = path();
         Properties values = new Properties();
         if (Files.isRegularFile(path)) {
             try (InputStream input = Files.newInputStream(path)) {
@@ -28,10 +39,20 @@ public record Config(boolean autoHost, int hostPort, SteamAccessMode accessMode)
         boolean autoHost = Boolean.parseBoolean(values.getProperty("autoHost", "false"));
         int port = parsePort(values.getProperty("hostPort", "25565"));
         SteamAccessMode mode = parseMode(values.getProperty("accessMode", "FRIENDS_ONLY"));
+        boolean autoStartSteam = Boolean.parseBoolean(values.getProperty("autoStartSteam", "true"));
 
+        Config config = new Config(autoHost, port, mode, autoStartSteam);
+        config.save();
+        return config;
+    }
+
+    public void save() {
+        Path path = path();
+        Properties values = new Properties();
         values.setProperty("autoHost", Boolean.toString(autoHost));
-        values.setProperty("hostPort", Integer.toString(port));
-        values.setProperty("accessMode", mode.name());
+        values.setProperty("hostPort", Integer.toString(hostPort));
+        values.setProperty("accessMode", accessMode.name());
+        values.setProperty("autoStartSteam", Boolean.toString(autoStartSteam));
         values.setProperty("# accessMode options", "FRIENDS_ONLY or INVITE_ONLY");
         try {
             Files.createDirectories(path.getParent());
@@ -41,7 +62,6 @@ public record Config(boolean autoHost, int hostPort, SteamAccessMode accessMode)
         } catch (IOException exception) {
             E4steamClient.LOGGER.warn("Could not write {}", path, exception);
         }
-        return new Config(autoHost, port, mode);
     }
 
     private static int parsePort(String value) {
